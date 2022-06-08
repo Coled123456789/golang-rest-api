@@ -61,6 +61,19 @@ func getTicketById(ctx *gin.Context) {
 	ctx.IndentedJSON(http.StatusNotFound, gin.H{"message": "ticket ID " + ctx.Param("id") + " not found"})
 }
 
+func deleteTicketById(ctx *gin.Context) {
+	id, _ := strconv.Atoi(ctx.Param("id"))
+	for i, a := range tickets {
+		if a.ID == id {
+			tickets[i] = tickets[len(tickets)-1]
+			tickets = tickets[:len(tickets)-1]
+			ctx.IndentedJSON(http.StatusOK, nil)
+			return
+		}
+	}
+	ctx.IndentedJSON(http.StatusNotFound, gin.H{"message": "ticket ID " + ctx.Param("id") + " not found"})
+}
+
 func postTickets(ctx *gin.Context) {
 	var newTicket Ticket
 	if err := ctx.BindJSON(&newTicket); err != nil {
@@ -134,6 +147,7 @@ func main() {
 	router := gin.Default()
 	router.GET("/tickets", getTickets)
 	router.GET("/tickets/:id", getTicketById)
+	router.DELETE("/tickets/:id", deleteTicketById)
 	router.POST("/tickets", postTickets)
 
 	router.GET("/events", getEvents)
