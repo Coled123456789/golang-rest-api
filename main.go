@@ -50,6 +50,23 @@ func getTickets(ctx *gin.Context) {
 	ctx.IndentedJSON(http.StatusOK, tickets)
 }
 
+func getTicketsForEvent(ctx *gin.Context) {
+	id, _ := strconv.Atoi(ctx.Param("id"))
+	for _, a := range events {
+		if a.ID == id {
+			res := make([]Ticket, 0)
+			for _, t := range tickets {
+				if t.EventID == a.ID {
+					res = append(res, t)
+				}
+			}
+			ctx.IndentedJSON(http.StatusOK, res)
+			return
+		}
+	}
+	ctx.IndentedJSON(http.StatusNotFound, gin.H{"message": "event ID " + ctx.Param("id") + " not found"})
+}
+
 func getTicketById(ctx *gin.Context) {
 	id, _ := strconv.Atoi(ctx.Param("id"))
 	for _, a := range tickets {
@@ -116,6 +133,27 @@ func getEventsById(ctx *gin.Context) {
 	ctx.IndentedJSON(http.StatusNotFound, gin.H{"message": "event ID " + ctx.Param("id") + " not found"})
 }
 
+func deleteEvent(ctx *gin.Context) {
+	id, _ := strconv.Atoi(ctx.Param("id"))
+	for i, a := range events {
+		if a.ID == id {
+			ctx.IndentedJSON(http.StatusOK, a)
+			j := 0
+			for j < len(tickets) {
+				if tickets[j].EventID == a.ID {
+					tickets[j] = tickets[len(tickets)-1]
+					tickets = tickets[:len(tickets)-1]
+				}
+			}
+			events[i] = events[len(events)-1]
+			events = events[:len(events)-1]
+			ctx.IndentedJSON(http.StatusOK, nil)
+			return
+		}
+	}
+	ctx.IndentedJSON(http.StatusNotFound, gin.H{"message": "event ID " + ctx.Param("id") + " not found"})
+}
+
 func generateNewID(ids []int) int {
 	id := 0
 	sort.Ints(ids)
@@ -152,6 +190,8 @@ func main() {
 
 	router.GET("/events", getEvents)
 	router.GET("/events/:id", getEventsById)
+	router.GET("/events/:id/tickets", getTicketsForEvent)
+	router.DELETE("/events/:id", deleteEvent)
 	router.POST("/events", postEvents)
 	router.Run("localhost:8080")
 }
