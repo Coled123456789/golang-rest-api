@@ -16,7 +16,7 @@ type Ticket struct {
 	Type    string `json:"type"`
 }
 
-type event_t struct {
+type Event struct {
 	ID            int      `json:"id"`
 	Name          string   `json:"name"`
 	StartDateTime string   `json:"start_datetime"`
@@ -24,7 +24,7 @@ type event_t struct {
 	ValidTypes    []string `json:"valid_types"`
 }
 
-func CompareEvents(a, b event_t) bool {
+func CompareEvents(a, b Event) bool {
 	if len(a.ValidTypes) == len(b.ValidTypes) {
 		for i, t := range a.ValidTypes {
 			if b.ValidTypes[i] != t {
@@ -42,9 +42,37 @@ var tickets = []Ticket{
 	{ID: 3, Name: "Ivan Ivanovich", Price: 1399, EventID: 1, Type: "B"},
 }
 
-var events = []event_t{
+var events = []Event{
 	{ID: 1, Name: "The Show", StartDateTime: "6/4/2022", EndDateTime: "6/6/2022", ValidTypes: []string{"A", "B", "C"}},
 }
+
+func getEvent(t Ticket) (Event, bool) {
+	for _, e := range events {
+		if e.ID == t.EventID {
+			return e, true
+		}
+	}
+	return Event{}, false
+}
+
+func validTicketEvent(t Ticket) bool {
+	for _, e := range events {
+		if e.ID == t.EventID {
+			for _, ty := range e.ValidTypes {
+				if ty == t.Type {
+					return true
+				}
+			}
+			return false
+		}
+	}
+	return false
+}
+
+/*
+func getEventTickets(e Event) []Ticket {
+	return make([]Ticket, 0)
+}*/
 
 func getTickets(ctx *gin.Context) {
 	ctx.IndentedJSON(http.StatusOK, tickets)
@@ -91,6 +119,37 @@ func deleteTicketById(ctx *gin.Context) {
 	ctx.IndentedJSON(http.StatusNotFound, gin.H{"message": "ticket ID " + ctx.Param("id") + " not found"})
 }
 
+func updateTicket(ctx *gin.Context) {
+	id, _ := strconv.Atoi(ctx.Param("id"))
+	var newTicket Ticket
+	if err := ctx.BindJSON(&newTicket); err != nil {
+		ctx.IndentedJSON(http.StatusBadRequest, gin.H{"message": "failed to parse JSON to struct"})
+		return
+	}
+	newTicket.ID = id
+	for i, t := range tickets {
+		if t.ID == id {
+			e, val := getEvent(newTicket)
+			if val {
+				for _, ty := range e.ValidTypes {
+					if newTicket.Type == ty {
+						tickets[i] = newTicket
+						ctx.IndentedJSON(http.StatusAccepted, newTicket)
+						return
+					}
+				}
+				ctx.IndentedJSON(http.StatusBadRequest, gin.H{"message": "invalid ticket type for event"})
+
+			} else {
+				ctx.IndentedJSON(http.StatusBadRequest, gin.H{"message": "event for ticket  not found"})
+			}
+
+			return
+		}
+	}
+	ctx.IndentedJSON(http.StatusNotFound, gin.H{"message": "ticket ID " + ctx.Param("id") + " not found"})
+}
+
 func postTickets(ctx *gin.Context) {
 	var newTicket Ticket
 	if err := ctx.BindJSON(&newTicket); err != nil {
@@ -102,20 +161,15 @@ func postTickets(ctx *gin.Context) {
 		ids[i] = t.ID
 	}
 	newTicket.ID = generateNewID(ids)
-	for _, e := range events {
-		if e.ID == newTicket.EventID {
-			for _, t := range e.ValidTypes {
-				if newTicket.Type == t {
-					tickets = append(tickets, newTicket)
-					ctx.IndentedJSON(http.StatusCreated, newTicket)
-					return
-				}
-			}
-			ctx.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Invalid ticket type (" + newTicket.Type + ") for event (" + strconv.Itoa(e.ID) + ")"})
-			return
-		}
+	if validTicketEvent(newTicket) {
+		tickets = append(tickets, newTicket)
+		ctx.IndentedJSON(http.StatusCreated, newTicket)
+		return
+
+	} else {
+		ctx.IndentedJSON(http.StatusBadRequest,
+			gin.H{"message": "Event (" + strconv.Itoa(newTicket.EventID) + ") not found, or bad ticket type (" + newTicket.Type + ") for event"})
 	}
-	ctx.IndentedJSON(http.StatusBadRequest, gin.H{"message": "Event (" + strconv.Itoa(newTicket.ID) + ") not found"})
 }
 
 func getEvents(ctx *gin.Context) {
@@ -137,17 +191,17 @@ func deleteEvent(ctx *gin.Context) {
 	id, _ := strconv.Atoi(ctx.Param("id"))
 	for i, a := range events {
 		if a.ID == id {
-			ctx.IndentedJSON(http.StatusOK, a)
 			j := 0
 			for j < len(tickets) {
 				if tickets[j].EventID == a.ID {
 					tickets[j] = tickets[len(tickets)-1]
 					tickets = tickets[:len(tickets)-1]
 				}
+				j++
 			}
 			events[i] = events[len(events)-1]
 			events = events[:len(events)-1]
-			ctx.IndentedJSON(http.StatusOK, nil)
+			ctx.IndentedJSON(http.StatusOK, gin.H{"message": "event ID and associated tickets " + ctx.Param("id") + " deleted"})
 			return
 		}
 	}
@@ -166,7 +220,7 @@ func generateNewID(ids []int) int {
 }
 
 func postEvents(ctx *gin.Context) {
-	var newEvent event_t
+	var newEvent Event
 	if err := ctx.BindJSON(&newEvent); err != nil {
 		ctx.IndentedJSON(http.StatusBadRequest, gin.H{"message": "failed to parse JSON to struct"})
 		return
@@ -187,6 +241,7 @@ func main() {
 	router.GET("/tickets/:id", getTicketById)
 	router.DELETE("/tickets/:id", deleteTicketById)
 	router.POST("/tickets", postTickets)
+	router.PUT("/tickets/:id", updateTicket)
 
 	router.GET("/events", getEvents)
 	router.GET("/events/:id", getEventsById)
