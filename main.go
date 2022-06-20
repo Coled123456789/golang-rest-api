@@ -163,6 +163,7 @@ func postTickets(ctx *gin.Context) {
 	newTicket.ID = generateNewID(ids)
 	if validTicketEvent(newTicket) {
 		tickets = append(tickets, newTicket)
+		ctx.Header("Location", ctx.RemoteIP()+"/tickets/"+strconv.Itoa(newTicket.ID))
 		ctx.IndentedJSON(http.StatusCreated, newTicket)
 		return
 
@@ -233,6 +234,7 @@ func postEvents(ctx *gin.Context) {
 
 	events = append(events, newEvent)
 	ctx.IndentedJSON(http.StatusCreated, newEvent)
+	ctx.Header("Location", ctx.RemoteIP()+"/events/"+strconv.Itoa(newEvent.ID))
 }
 
 func main() {
